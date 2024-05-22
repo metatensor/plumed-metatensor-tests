@@ -1,0 +1,9 @@
+Mer 22 mai 2024 16:43:10 CEST
+Running regtest in /Users/guillaume/code/metatensor/integrations/plumed-metatensor-tests/regtests/metatensor/rt-basic
+++ Test type: driver
+++ Arguments: --plumed plumed.dat --ixyz structure.xyz --length-units A --dump-forces forces --dump-forces-fmt %8.2f
+++ Processors: 0
+WARNING using plumed from /Users/guillaume/code/metatensor/integrations/plumed2/
+/Users/guillaume/code/metatensor/integrations/plumed-metatensor-tests/regtests/metatensor/rt-basic/tmp
+Checking for metatensor
+Checking for metatensor
