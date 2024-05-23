@@ -1,0 +1,101 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    # Check all PR
+  schedule:
+    # run at 10am on every Monday
+    - cron: '0 10 * * 1'
+
+jobs:
+  rust-tests:
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            extra-ldflags: -Wl,--disable-new-dtags
+          - os: macos-14
+    steps:
+      - name: checkout regtests
+        uses: actions/checkout@v4
+
+      - name: checkout plumed2
+        uses: actions/checkout@v4
+        with:
+          repository: 'lab-cosmo/plumed2'
+          ref: 'action-metatensor'
+          path: 'plumed2'
+
+      - name: setup python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: setup rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+
+      - name: install dependencies
+        env:
+          PIP_EXTRA_INDEX_URL: https://download.pytorch.org/whl/cpu
+        run: |
+          pip install --upgrade pip
+          pip install torch==2.3.0
+          pip install "metatensor-torch >=0.5.1,<0.6.0"
+
+          # install a specific commit of rascaline. This should be changed
+          # whenever there is a breaking change in rascaline or we make a
+          # release on PyPI
+          pip install cmake setuptools wheel packaging
+          pip install wigners
+          pip install --no-deps --no-build-isolation --check-build-dependencies "rascaline @ git+https://github.com/luthaf/rascaline@5348132"
+          pip install --no-deps --no-build-isolation --check-build-dependencies "rascaline-torch @ git+https://github.com/luthaf/rascaline@5348132#subdirectory=python/rascaline-torch"
+
+      - name: configure plumed
+        run: |
+          TORCH_CMAKE_PREFIX=$(python -c "import torch; print(torch.utils.cmake_prefix_path)")
+          TORCH_PREFIX=$(cd "$TORCH_CMAKE_PREFIX/../.." && pwd)
+
+          METATENSOR_CMAKE_PREFIX=$(python -c "import metatensor; print(metatensor.utils.cmake_prefix_path)")
+          METATENSOR_PREFIX=$(cd "$METATENSOR_CMAKE_PREFIX/../.." && pwd)
+
+          METATENSOR_TORCH_CMAKE_PREFIX=$(python -c "import metatensor.torch; print(metatensor.torch.utils.cmake_prefix_path)")
+          METATENSOR_TORCH_PREFIX=$(cd "$METATENSOR_TORCH_CMAKE_PREFIX/../.." && pwd)
+
+          TORCH_CPPFLAGS="-D_GLIBCXX_USE_CXX11_ABI=0"
+
+          TORCH_INCLUDES="-I$TORCH_PREFIX/include -isystem $TORCH_PREFIX/include/torch/csrc/api/include"
+          CPPFLAGS="$TORCH_INCLUDES $TORCH_CPPFLAGS -isystem $METATENSOR_PREFIX/include -isystem $METATENSOR_TORCH_PREFIX/include $CPPFLAGS"
+
+          LDFLAGS="-L$TORCH_PREFIX/lib -L$METATENSOR_PREFIX/lib -L$METATENSOR_TORCH_PREFIX/lib $LDFLAGS"
+
+          LDFLAGS="$LDFLAGS -Wl,-rpath,$TORCH_PREFIX/lib"
+          LDFLAGS="$LDFLAGS -Wl,-rpath,$METATENSOR_PREFIX/lib -Wl,-rpath,$METATENSOR_TORCH_PREFIX/lib"
+
+          LDFLAGS="$LDFLAGS ${{ matrix.extra-ldflags }}"
+
+          cd plumed2
+          ./configure --disable-mpi \
+                      --enable-libtorch \
+                      --enable-metatensor \
+                      --enable-modules=all \
+                      LDFLAGS="$LDFLAGS" CPPFLAGS="$CPPFLAGS"
+
+      - name: show 'config.log'
+        if: always()
+        run: cat plumed2/config.log
+
+      - name: build plumed
+        run: |
+          cd plumed2
+          make -j2
+
+      - name: run regression tests
+        run: |
+          source plumed2/sourceme.sh
+          make
