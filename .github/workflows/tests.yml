@@ -26,8 +26,7 @@ jobs:
       - name: checkout plumed2
         uses: actions/checkout@v4
         with:
-          repository: 'lab-cosmo/plumed2'
-          ref: 'action-metatensor'
+          repository: 'plumed/plumed2'
           path: 'plumed2'
 
       - name: setup python
