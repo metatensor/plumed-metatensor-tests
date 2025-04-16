@@ -9,7 +9,7 @@ from metatensor.torch.atomistic import (
     ModelOutput,
     System,
 )
-from rascaline.torch import SoapPowerSpectrum
+from featomic.torch import SoapPowerSpectrum
 
 
 class SOAP_CV(torch.nn.Module):
@@ -23,13 +23,16 @@ class SOAP_CV(torch.nn.Module):
             ),
         )
         self.calculator = SoapPowerSpectrum(
-            cutoff=4.0,
-            max_angular=6,
-            max_radial=6,
-            radial_basis={"Gto": {}},
-            cutoff_function={"ShiftedCosine": {"width": 0.5}},
-            center_atom_weight=1.0,
-            atomic_gaussian_width=0.3,
+            cutoff={
+                "radius": 4.0,
+                "smoothing": {"type": "ShiftedCosine", "width": 0.5},
+            },
+            density={"type": "Gaussian", "width": 0.3},
+            basis={
+                "type": "TensorProduct",
+                "max_angular": 6,
+                "radial": {"type": "Gto", "max_radial": 5},
+            },
         )
 
         torch.manual_seed(-230623)
@@ -41,11 +44,10 @@ class SOAP_CV(torch.nn.Module):
         outputs: Dict[str, ModelOutput],
         selected_atoms: Optional[Labels],
     ) -> Dict[str, TensorMap]:
-
-        if "plumed::cv" not in outputs:
+        if "features" not in outputs:
             return {}
 
-        if not outputs["plumed::cv"].per_atom:
+        if not outputs["features"].per_atom:
             raise ValueError("per_atom=False is not supported")
 
         if len(systems[0]) == 0:
@@ -73,7 +75,7 @@ class SOAP_CV(torch.nn.Module):
             blocks=[block],
         )
 
-        return {"plumed::cv": cv}
+        return {"features": cv}
 
 
 cv = SOAP_CV(species=[1, 6, 7, 8])
@@ -81,7 +83,7 @@ cv.eval()
 
 
 capabilities = ModelCapabilities(
-    outputs={"plumed::cv": ModelOutput(per_atom=True)},
+    outputs={"features": ModelOutput(per_atom=True)},
     interaction_range=4.0,
     supported_devices=["cpu"],
     length_unit="nm",
@@ -91,4 +93,4 @@ capabilities = ModelCapabilities(
 
 metadata = ModelMetadata(name="Collective Variable test")
 model = MetatensorAtomisticModel(cv, metadata, capabilities)
-model.export("soap_cv.pt", collect_extensions="extensions")
+model.save("soap_cv.pt", collect_extensions="extensions")

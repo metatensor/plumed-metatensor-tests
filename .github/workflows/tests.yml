@@ -44,16 +44,7 @@ jobs:
           PIP_EXTRA_INDEX_URL: https://download.pytorch.org/whl/cpu
         run: |
           pip install --upgrade pip
-          pip install torch==2.3.0
-          pip install "metatensor-torch >=0.5.1,<0.6.0"
-
-          # install a specific commit of rascaline. This should be changed
-          # whenever there is a breaking change in rascaline or we make a
-          # release on PyPI
-          pip install cmake setuptools wheel packaging
-          pip install wigners
-          pip install --no-deps --no-build-isolation --check-build-dependencies "rascaline @ git+https://github.com/luthaf/rascaline@5348132"
-          pip install --no-deps --no-build-isolation --check-build-dependencies "rascaline-torch @ git+https://github.com/luthaf/rascaline@5348132#subdirectory=python/rascaline-torch"
+          pip install torch==2.6.0 "metatensor-torch >=0.7.5,<0.8.0" featomic[torch]
 
       - name: configure plumed
         run: |
@@ -86,7 +77,7 @@ jobs:
                       LDFLAGS="$LDFLAGS" CPPFLAGS="$CPPFLAGS"
 
       - name: show 'config.log'
-        if: always()
+        if: always()  # show this even if the previous step failed
         run: cat plumed2/config.log
 
       - name: build plumed
