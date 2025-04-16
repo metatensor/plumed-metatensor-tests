@@ -9,7 +9,7 @@ from metatensor.torch.atomistic import (
     ModelOutput,
     System,
 )
-from rascaline.torch import SphericalExpansion
+from featomic.torch import SphericalExpansion
 
 
 class BaTiO3_CV(torch.nn.Module):
@@ -27,13 +27,16 @@ class BaTiO3_CV(torch.nn.Module):
         )
 
         self.calculator = SphericalExpansion(
-            cutoff=3.0,
-            max_angular=1,
-            max_radial=1,
-            radial_basis={"Gto": {}},
-            cutoff_function={"ShiftedCosine": {"width": 0.5}},
-            center_atom_weight=1.0,
-            atomic_gaussian_width=0.5,
+            cutoff={
+                "radius": 3.0,
+                "smoothing": {"type": "ShiftedCosine", "width": 0.5},
+            },
+            density={"type": "Gaussian", "width": 0.5},
+            basis={
+                "type": "TensorProduct",
+                "max_angular": 1,
+                "radial": {"type": "Gto", "max_radial": 0},
+            },
         )
 
     def forward(
@@ -42,8 +45,7 @@ class BaTiO3_CV(torch.nn.Module):
         outputs: Dict[str, ModelOutput],
         selected_atoms: Optional[Labels],
     ) -> Dict[str, TensorMap]:
-
-        if "plumed::cv" not in outputs:
+        if "features" not in outputs:
             return {}
 
         spherical_expansion = self.calculator(
@@ -69,15 +71,14 @@ class BaTiO3_CV(torch.nn.Module):
             blocks=[block],
         )
 
-        return {"plumed::cv": cv}
+        return {"features": cv}
 
 
 cv = BaTiO3_CV()
 cv.eval()
 
-
 capabilities = ModelCapabilities(
-    outputs={"plumed::cv": ModelOutput(per_atom=False)},
+    outputs={"features": ModelOutput(per_atom=False)},
     interaction_range=3.0,
     supported_devices=["cpu"],
     length_unit="A",
@@ -98,4 +99,4 @@ to study phase transition in BaTiO3.
 
 
 model = MetatensorAtomisticModel(cv, metadata, capabilities)
-model.export("BaTiO3_CV.pt", collect_extensions="extensions")
+model.save("BaTiO3_CV.pt", collect_extensions="extensions")
